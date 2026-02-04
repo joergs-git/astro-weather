@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-CloudWatcher Solo Client für Synology NAS
+CloudWatcher Solo Client for Synology NAS
 ==========================================
 
-Pollt den CloudWatcher Solo via HTTP und schiebt die Daten zu Supabase.
-Designed für Synology Task Scheduler oder als Daemon.
+Polls the CloudWatcher Solo via HTTP and pushes data to Supabase.
+Designed for Synology Task Scheduler or as daemon.
 
-Standort: Wietesch/Rheine
+Location: Wietesch/Rheine
 Solo URL: http://192.168.1.151/cgi-bin/cgiLastData
 """
 
@@ -27,65 +27,65 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================
-# DATENMODELL
+# DATA MODEL
 # ============================================
 
 @dataclass
 class CloudWatcherReading:
-    """Einzelne Messung vom CloudWatcher Solo"""
-    
-    # Zeitstempel (vom Solo, GMT)
+    """Single reading from CloudWatcher Solo"""
+
+    # Timestamp (from Solo, GMT)
     timestamp: datetime
-    
-    # Wolken (das wichtigste!)
-    clouds: float              # Sky-Ambient Temperatur in °C (negativer = klarer)
-    clouds_safe: int           # 0=bewölkt/unsicher, 1=klar/sicher für Astro
-    
-    # Temperaturen
-    sky_temp: float            # IR Himmelstemperatur (rawir)
-    ambient_temp: float        # Umgebungstemperatur
-    dew_point: float           # Taupunkt
-    humidity: int              # Luftfeuchtigkeit %
-    humidity_safe: int         # 0=zu feucht, 1=OK
-    
-    # Himmelshelligkeit (SQM-Wert!)
-    sky_brightness_mpsas: float  # mag/arcsec² (höher = dunkler, 18+ = gut)
-    light_safe: int              # 0=zu hell, 1=dunkel genug
-    
-    # Regen
-    rain: int                  # Nässemenge (Rohwert)
-    rain_safe: int             # 0=nass, 1=trocken
-    
-    # Wind (falls angeschlossen)
-    wind: float                # km/h (-1 = nicht angeschlossen)
-    gust: float                # Böen km/h
-    wind_safe: int             # 0=zu windig, 1=OK
-    
-    # Druck
-    pressure_abs: float        # Absoluter Druck hPa
-    pressure_rel: float        # Relativer Druck hPa
-    pressure_safe: int         # Für uns weniger relevant
-    
-    # Gesamtstatus
-    safe: int                  # 0=Unsafe, 1=Safe (alles OK)
-    
-    # Geräteinformationen
+
+    # Clouds (the most important!)
+    clouds: float              # Sky-Ambient temperature in °C (more negative = clearer)
+    clouds_safe: int           # 0=cloudy/unsafe, 1=clear/safe for astro
+
+    # Temperatures
+    sky_temp: float            # IR sky temperature (rawir)
+    ambient_temp: float        # Ambient temperature
+    dew_point: float           # Dew point
+    humidity: int              # Humidity %
+    humidity_safe: int         # 0=too humid, 1=OK
+
+    # Sky brightness (SQM value!)
+    sky_brightness_mpsas: float  # mag/arcsec² (higher = darker, 18+ = good)
+    light_safe: int              # 0=too bright, 1=dark enough
+
+    # Rain
+    rain: int                  # Wetness amount (raw value)
+    rain_safe: int             # 0=wet, 1=dry
+
+    # Wind (if connected)
+    wind: float                # km/h (-1 = not connected)
+    gust: float                # Gusts km/h
+    wind_safe: int             # 0=too windy, 1=OK
+
+    # Pressure
+    pressure_abs: float        # Absolute pressure hPa
+    pressure_rel: float        # Relative pressure hPa
+    pressure_safe: int         # Less relevant for us
+
+    # Overall status
+    safe: int                  # 0=Unsafe, 1=Safe (all OK)
+
+    # Device information
     serial: str
     firmware: str
     
     @property
     def is_clear(self) -> bool:
-        """Ist der Himmel klar? (clouds_safe=1)"""
+        """Is the sky clear? (clouds_safe=1)"""
         return self.clouds_safe == 1
-    
+
     @property
     def is_cloudy(self) -> bool:
-        """Ist es bewölkt? (clouds_safe=0)"""
+        """Is it cloudy? (clouds_safe=0)"""
         return self.clouds_safe == 0
-    
+
     @property
     def sky_quality_name(self) -> str:
-        """Lesbare Himmelqualität"""
+        """Readable sky quality"""
         if self.clouds_safe == 1:
             return "CLEAR"
         elif self.clouds_safe == 2:
@@ -95,18 +95,18 @@ class CloudWatcherReading:
     
     @property
     def is_safe_for_imaging(self) -> bool:
-        """Ist es sicher für Imaging? (klar, trocken, dunkel, overall safe)"""
+        """Is it safe for imaging? (clear, dry, dark, overall safe)"""
         return (
-            self.clouds_safe == 1 and  # Klarer Himmel
-            self.rain_safe == 1 and    # Trocken
-            self.light_safe == 1 and   # Dunkel genug
-            self.safe == 1             # Gesamtstatus OK (1=safe)
+            self.clouds_safe == 1 and  # Clear sky
+            self.rain_safe == 1 and    # Dry
+            self.light_safe == 1 and   # Dark enough
+            self.safe == 1             # Overall status OK (1=safe)
         )
     
     @property
     def bortle_estimate(self) -> int:
         """
-        Geschätzte Bortle-Klasse aus SQM-Wert
+        Estimated Bortle class from SQM value
         
         SQM → Bortle:
         >21.75 → 1 (Excellent dark)
@@ -128,7 +128,7 @@ class CloudWatcherReading:
         else: return 8
     
     def to_dict(self) -> Dict[str, Any]:
-        """Konvertiert zu Dictionary für DB/JSON"""
+        """Converts to dictionary for DB/JSON"""
         return {
             "timestamp": self.timestamp.isoformat(),
             "clouds": self.clouds,
@@ -156,8 +156,8 @@ class CloudWatcherReading:
         }
     
     def summary(self) -> str:
-        """Kurze Zusammenfassung"""
-        # Status-Icons basierend auf korrekter Logik
+        """Brief summary"""
+        # Status icons based on correct logic
         overall = "✅" if self.is_safe_for_imaging else "❌"
         sky = "☀️ CLEAR" if self.clouds_safe == 1 else "☁️ CLOUDY"
         rain = "💧" if self.rain_safe == 0 else ""
@@ -177,15 +177,15 @@ class CloudWatcherReading:
 
 class CloudWatcherSoloClient:
     """
-    Client für CloudWatcher Solo via HTTP
+    Client for CloudWatcher Solo via HTTP
     """
-    
+
     def __init__(self, host: str = "192.168.1.151", port: int = 80, timeout: int = 10):
         """
         Args:
-            host: IP-Adresse des Solo
-            port: HTTP Port (default 80)
-            timeout: Request Timeout in Sekunden
+            host: IP address of the Solo
+            port: HTTP port (default 80)
+            timeout: Request timeout in seconds
         """
         self.base_url = f"http://{host}:{port}"
         self.data_url = f"{self.base_url}/cgi-bin/cgiLastData"
@@ -195,14 +195,14 @@ class CloudWatcherSoloClient:
     
     def fetch(self) -> CloudWatcherReading:
         """
-        Holt aktuelle Daten vom CloudWatcher Solo
-        
+        Fetches current data from CloudWatcher Solo
+
         Returns:
-            CloudWatcherReading mit allen Sensordaten
-            
+            CloudWatcherReading with all sensor data
+
         Raises:
-            requests.RequestException bei Verbindungsfehlern
-            ValueError bei Parse-Fehlern
+            requests.RequestException on connection errors
+            ValueError on parse errors
         """
         logger.debug(f"Fetching data from {self.data_url}")
         
@@ -218,9 +218,9 @@ class CloudWatcherSoloClient:
     
     def _parse_response(self, text: str) -> CloudWatcherReading:
         """
-        Parst die key=value Antwort vom Solo
-        
-        Beispiel-Input:
+        Parses the key=value response from Solo
+
+        Example input:
             dataGMTTime=2026/01/23 17:53:25
             cwinfo=Serial: 2653, FW: 5.89
             clouds=-8.360000
@@ -234,7 +234,7 @@ class CloudWatcherSoloClient:
                 key, value = line.split('=', 1)
                 data[key.strip()] = value.strip()
         
-        # Parse Zeitstempel (GMT)
+        # Parse timestamp (GMT)
         time_str = data.get("dataGMTTime", "")
         try:
             timestamp = datetime.strptime(time_str, "%Y/%m/%d %H:%M:%S")
@@ -243,7 +243,7 @@ class CloudWatcherSoloClient:
             timestamp = datetime.now(timezone.utc)
             logger.warning(f"Could not parse timestamp: {time_str}, using current time")
         
-        # Parse Geräteinformationen
+        # Parse device information
         cwinfo = data.get("cwinfo", "")
         serial = ""
         firmware = ""
@@ -259,7 +259,7 @@ class CloudWatcherSoloClient:
             timestamp=timestamp,
             clouds=float(data.get("clouds", 0)),
             clouds_safe=int(data.get("cloudsSafe", 0)),
-            sky_temp=float(data.get("rawir", 0)),  # rawir ist die echte IR-Messung
+            sky_temp=float(data.get("rawir", 0)),  # rawir is the actual IR measurement
             ambient_temp=float(data.get("temp", 0)),
             dew_point=float(data.get("dewp", 0)),
             humidity=int(data.get("hum", 0)),
@@ -280,15 +280,15 @@ class CloudWatcherSoloClient:
         )
     
     def get_last_reading(self) -> Optional[CloudWatcherReading]:
-        """Gibt die letzte Messung zurück (ohne neuen Request)"""
+        """Returns the last reading (without new request)"""
         return self._last_reading
-    
+
     def get_last_raw(self) -> Optional[str]:
-        """Gibt die letzte Roh-Antwort zurück (für Debugging)"""
+        """Returns the last raw response (for debugging)"""
         return self._last_raw
-    
+
     def is_reachable(self) -> bool:
-        """Prüft ob der Solo erreichbar ist"""
+        """Checks if the Solo is reachable"""
         try:
             response = requests.get(self.base_url, timeout=5)
             return response.status_code == 200
@@ -302,7 +302,7 @@ class CloudWatcherSoloClient:
 
 class CloudWatcherDatabase:
     """
-    Speichert CloudWatcher-Daten in Supabase
+    Stores CloudWatcher data in Supabase
     """
     
     def __init__(self, supabase_url: str, supabase_key: str):
@@ -312,16 +312,16 @@ class CloudWatcherDatabase:
     
     def insert_reading(self, reading: CloudWatcherReading) -> bool:
         """
-        Speichert eine Messung in der Datenbank
-        
+        Saves a reading to the database
+
         Returns:
-            True bei Erfolg
+            True on success
         """
         record = {
             "timestamp": reading.timestamp.isoformat(),
             "sky_temperature": reading.sky_temp,
             "ambient_temperature": reading.ambient_temp,
-            "sky_minus_ambient": reading.clouds,  # Das ist sky-ambient
+            "sky_minus_ambient": reading.clouds,  # This is sky-ambient
             "sky_quality": reading.sky_quality_name,
             "sky_quality_raw": reading.clouds_safe,
             "rain_sensor": reading.rain,
@@ -340,7 +340,7 @@ class CloudWatcherDatabase:
             return False
     
     def get_recent_readings(self, hours: int = 24) -> list:
-        """Holt die letzten N Stunden an Messungen"""
+        """Gets readings from the last N hours"""
         from datetime import timedelta
         
         since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
@@ -360,10 +360,10 @@ class CloudWatcherDatabase:
 
 def run_polling_daemon(config: Dict[str, Any]):
     """
-    Hauptloop für den Polling-Daemon
-    
+    Main loop for the polling daemon
+
     Args:
-        config: Konfiguration mit:
+        config: Configuration with:
             - cloudwatcher_host
             - poll_interval_seconds
             - supabase_url (optional)
@@ -393,17 +393,17 @@ def run_polling_daemon(config: Dict[str, Any]):
     
     while True:
         try:
-            # Daten abrufen
+            # Fetch data
             reading = cw.fetch()
-            
-            # In DB speichern (falls konfiguriert)
+
+            # Save to DB (if configured)
             if db:
                 if db.insert_reading(reading):
                     logger.debug("Reading saved to Supabase")
                 else:
                     logger.warning("Failed to save reading to Supabase")
-            
-            # Optional: Lokale JSON-Datei für Debugging
+
+            # Optional: Local JSON file for debugging
             if config.get("local_json_file"):
                 with open(config["local_json_file"], "w") as f:
                     json.dump(reading.to_dict(), f, indent=2)
@@ -412,23 +412,23 @@ def run_polling_daemon(config: Dict[str, Any]):
             logger.error(f"Network error: {e}")
         except Exception as e:
             logger.error(f"Error: {e}")
-        
-        # Warten
+
+        # Wait
         time.sleep(poll_interval)
 
 
 # ============================================
-# SYNOLOGY-SPEZIFISCH: EINZELNER ABRUF
+# SYNOLOGY-SPECIFIC: SINGLE POLL
 # ============================================
 
 def single_poll_and_save(config: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Einzelner Abruf - für Synology Task Scheduler
-    
-    Kann als Cron-Job alle 5 Minuten aufgerufen werden.
-    
+    Single poll - for Synology Task Scheduler
+
+    Can be called as cron job every 5 minutes.
+
     Returns:
-        Status-Dictionary
+        Status dictionary
     """
     status = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -439,14 +439,14 @@ def single_poll_and_save(config: Dict[str, Any]) -> Dict[str, Any]:
     }
     
     try:
-        # CloudWatcher abrufen
+        # Fetch CloudWatcher
         cw = CloudWatcherSoloClient(
             host=config.get("cloudwatcher_host", "192.168.1.151")
         )
         reading = cw.fetch()
         status["reading"] = reading.to_dict()
-        
-        # In Supabase speichern
+
+        # Save to Supabase
         if config.get("supabase_url") and config.get("supabase_key"):
             db = CloudWatcherDatabase(
                 config["supabase_url"],
@@ -477,8 +477,8 @@ if __name__ == "__main__":
     parser.add_argument("--daemon", action="store_true", help="Run as daemon")
     parser.add_argument("--test", action="store_true", help="Test connection only")
     args = parser.parse_args()
-    
-    # Konfiguration aus Umgebungsvariablen
+
+    # Configuration from environment variables
     config = {
         "cloudwatcher_host": args.host,
         "poll_interval_seconds": args.interval,
@@ -488,7 +488,7 @@ if __name__ == "__main__":
     }
     
     if args.test:
-        # Nur Verbindung testen
+        # Test connection only
         print(f"Testing connection to {args.host}...")
         cw = CloudWatcherSoloClient(host=args.host)
         
@@ -508,17 +508,17 @@ if __name__ == "__main__":
             exit(1)
     
     elif args.single:
-        # Einzelner Abruf (für Synology Task Scheduler)
+        # Single poll (for Synology Task Scheduler)
         status = single_poll_and_save(config)
         print(json.dumps(status, indent=2))
         exit(0 if status["success"] else 1)
     
     elif args.daemon:
-        # Als Daemon laufen
+        # Run as daemon
         run_polling_daemon(config)
-    
+
     else:
-        # Default: Zeige Hilfe und teste einmal
+        # Default: Show help and test once
         parser.print_help()
         print("\n" + "=" * 60)
         print("QUICK TEST:")

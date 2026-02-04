@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Supabase Integration für Astrophotographie-Vorhersagesystem
-============================================================
+Supabase Integration for Astrophotography Forecasting System
+=============================================================
 
-Speichert meteoblue Vorhersagen und CloudWatcher Messungen.
-Findet Beobachtungsfenster und verwaltet Training-Daten.
+Stores meteoblue forecasts and CloudWatcher readings.
+Finds observation windows and manages training data.
 """
 
 import os
@@ -15,7 +15,7 @@ import logging
 
 from supabase import create_client, Client
 
-# Lokaler Import
+# Local import
 from meteoblue_client import AstroConditions, MeteoblueAstroClient
 
 logging.basicConfig(level=logging.INFO)
@@ -24,13 +24,13 @@ logger = logging.getLogger(__name__)
 
 class AstroDatabase:
     """
-    Supabase-Wrapper für Astrophotographie-Daten
+    Supabase wrapper for astrophotography data
     """
-    
+
     def __init__(self, supabase_url: str, supabase_key: str):
         """
-        Initialisiert die Datenbankverbindung
-        
+        Initializes the database connection
+
         Args:
             supabase_url: Supabase Project URL
             supabase_key: Supabase anon/service key
@@ -39,18 +39,18 @@ class AstroDatabase:
         logger.info("Supabase client initialized")
     
     # ==========================================
-    # METEOBLUE VORHERSAGEN
+    # METEOBLUE FORECASTS
     # ==========================================
-    
+
     def upsert_hourly_forecast(self, conditions: List[AstroConditions]) -> int:
         """
-        Speichert/aktualisiert stündliche Vorhersagen
-        
+        Saves/updates hourly forecasts
+
         Args:
-            conditions: Liste von AstroConditions
-            
+            conditions: List of AstroConditions
+
         Returns:
-            Anzahl der eingefügten/aktualisierten Zeilen
+            Number of inserted/updated rows
         """
         records = []
         for cond in conditions:
@@ -91,22 +91,22 @@ class AstroDatabase:
         logger.info(f"Upserted {count} hourly forecasts")
         return count
     
-    def get_forecast(self, 
-                     start: datetime, 
+    def get_forecast(self,
+                     start: datetime,
                      end: datetime,
                      only_night: bool = False,
                      min_score: int = 0) -> List[Dict]:
         """
-        Holt Vorhersagen aus der Datenbank
-        
+        Gets forecasts from the database
+
         Args:
-            start: Start-Zeitpunkt
-            end: End-Zeitpunkt
-            only_night: Nur astronomische Nacht (zenith > 108°)
-            min_score: Minimaler Astro-Score
-        
+            start: Start time
+            end: End time
+            only_night: Only astronomical night (zenith > 108°)
+            min_score: Minimum astro score
+
         Returns:
-            Liste von Vorhersage-Dictionaries
+            List of forecast dictionaries
         """
         query = self.client.table("meteoblue_hourly") \
             .select("*") \
@@ -123,7 +123,7 @@ class AstroDatabase:
     
     def get_best_upcoming_hours(self, limit: int = 20) -> List[Dict]:
         """
-        Holt die besten kommenden Stunden
+        Gets the best upcoming hours
         """
         result = self.client.table("meteoblue_hourly") \
             .select("*") \
@@ -136,25 +136,25 @@ class AstroDatabase:
         return result.data if result.data else []
     
     # ==========================================
-    # CLOUDWATCHER MESSUNGEN
+    # CLOUDWATCHER READINGS
     # ==========================================
-    
-    def insert_cloudwatcher_reading(self, 
+
+    def insert_cloudwatcher_reading(self,
                                     sky_temp: float,
                                     ambient_temp: float,
                                     sky_quality: str,
                                     raw_json: dict = None) -> bool:
         """
-        Speichert eine CloudWatcher-Messung
-        
+        Saves a CloudWatcher reading
+
         Args:
-            sky_temp: Himmel-Temperatur (IR)
-            ambient_temp: Umgebungstemperatur
+            sky_temp: Sky temperature (IR)
+            ambient_temp: Ambient temperature
             sky_quality: CLEAR/CLOUDY/VERY_CLOUDY
-            raw_json: Komplettes JSON vom CloudWatcher
-        
+            raw_json: Complete JSON from CloudWatcher
+
         Returns:
-            True bei Erfolg
+            True on success
         """
         record = {
             "timestamp": datetime.now().isoformat(),
@@ -171,10 +171,10 @@ class AstroDatabase:
         
         return bool(result.data)
     
-    def get_cloudwatcher_readings(self, 
-                                  start: datetime, 
+    def get_cloudwatcher_readings(self,
+                                  start: datetime,
                                   end: datetime) -> List[Dict]:
-        """Holt CloudWatcher-Messungen für einen Zeitraum"""
+        """Gets CloudWatcher readings for a time period"""
         result = self.client.table("cloudwatcher_readings") \
             .select("*") \
             .gte("timestamp", start.isoformat()) \
@@ -187,53 +187,53 @@ class AstroDatabase:
     # ==========================================
     # TRAINING PAIRS
     # ==========================================
-    
-    def create_training_pairs(self, 
-                              start: datetime, 
+
+    def create_training_pairs(self,
+                              start: datetime,
                               end: datetime) -> int:
         """
-        Erstellt Training-Paare aus Vorhersagen und Messungen
-        
-        Matcht meteoblue-Vorhersagen mit CloudWatcher-Messungen
-        auf Stundenbasis.
-        
+        Creates training pairs from forecasts and readings
+
+        Matches meteoblue forecasts with CloudWatcher readings
+        on an hourly basis.
+
         Returns:
-            Anzahl erstellter Paare
+            Number of created pairs
         """
-        # Hole alle Vorhersagen im Zeitraum
+        # Get all forecasts in time period
         forecasts = self.get_forecast(start, end)
-        
-        # Hole alle CloudWatcher-Messungen
+
+        # Get all CloudWatcher readings
         readings = self.get_cloudwatcher_readings(start, end)
         
         if not forecasts or not readings:
             logger.warning("No data for training pairs")
             return 0
         
-        # Gruppiere Messungen nach Stunde
+        # Group readings by hour
         readings_by_hour = {}
         for r in readings:
             hour = datetime.fromisoformat(r["timestamp"]).replace(minute=0, second=0, microsecond=0)
             if hour not in readings_by_hour:
                 readings_by_hour[hour] = []
             readings_by_hour[hour].append(r)
-        
-        # Erstelle Paare
+
+        # Create pairs
         pairs = []
         for fc in forecasts:
             fc_hour = datetime.fromisoformat(fc["timestamp"]).replace(minute=0, second=0, microsecond=0)
-            
+
             if fc_hour in readings_by_hour:
-                # Durchschnitt der Messungen in dieser Stunde
+                # Average of readings in this hour
                 hour_readings = readings_by_hour[fc_hour]
                 avg_sky_temp = sum(r["sky_temperature"] for r in hour_readings) / len(hour_readings)
                 avg_diff = sum(r["sky_minus_ambient"] for r in hour_readings) / len(hour_readings)
-                
-                # Häufigste Qualität
+
+                # Most frequent quality
                 qualities = [r["sky_quality"] for r in hour_readings]
                 actual_quality = max(set(qualities), key=qualities.count)
-                
-                # Vergleich: Hat die Vorhersage gestimmt?
+
+                # Comparison: Was the forecast correct?
                 forecast_clear = fc["totalcloud"] < 30
                 actual_clear = actual_quality == "CLEAR"
                 match = forecast_clear == actual_clear
@@ -263,11 +263,11 @@ class AstroDatabase:
         return 0
     
     # ==========================================
-    # BEOBACHTUNGSFENSTER
+    # OBSERVATION WINDOWS
     # ==========================================
-    
+
     def save_observation_window(self, window: Dict) -> bool:
-        """Speichert ein Beobachtungsfenster"""
+        """Saves an observation window"""
         record = {
             "start_time": window["start"].isoformat(),
             "end_time": window["end"].isoformat(),
@@ -286,7 +286,7 @@ class AstroDatabase:
         return bool(result.data)
     
     def get_upcoming_windows(self, min_score: int = 60) -> List[Dict]:
-        """Holt kommende Beobachtungsfenster"""
+        """Gets upcoming observation windows"""
         result = self.client.table("observation_windows") \
             .select("*") \
             .gt("start_time", datetime.now().isoformat()) \
@@ -297,7 +297,7 @@ class AstroDatabase:
         return result.data if result.data else []
     
     def mark_window_notified(self, window_id: int) -> bool:
-        """Markiert ein Fenster als benachrichtigt"""
+        """Marks a window as notified"""
         result = self.client.table("observation_windows") \
             .update({
                 "notified": True,
@@ -309,18 +309,18 @@ class AstroDatabase:
         return bool(result.data)
     
     # ==========================================
-    # STATISTIKEN
+    # STATISTICS
     # ==========================================
-    
+
     def get_daily_summary(self, date: datetime = None) -> Dict:
         """
-        Holt die Tageszusammenfassung
-        
+        Gets the daily summary
+
         Args:
-            date: Datum (default: heute)
-        
+            date: Date (default: today)
+
         Returns:
-            Dictionary mit Tagesstatistiken
+            Dictionary with daily statistics
         """
         if date is None:
             date = datetime.now()
@@ -349,15 +349,15 @@ class AstroDatabase:
     # ==========================================
     # API LOGGING
     # ==========================================
-    
-    def log_api_call(self, 
-                     api_name: str, 
-                     endpoint: str, 
+
+    def log_api_call(self,
+                     api_name: str,
+                     endpoint: str,
                      credits_used: int,
                      success: bool,
                      response_time_ms: int = 0,
                      error_message: str = None) -> None:
-        """Loggt einen API-Call"""
+        """Logs an API call"""
         record = {
             "api_name": api_name,
             "endpoint": endpoint,
@@ -371,28 +371,28 @@ class AstroDatabase:
 
 
 # ============================================
-# HAUPTPROGRAMM: Scheduler/Cron Job
+# MAIN PROGRAM: Scheduler/Cron Job
 # ============================================
 
 def run_hourly_update(config: Dict) -> Dict:
     """
-    Stündlicher Update-Job
-    
-    1. Holt neue meteoblue Vorhersage
-    2. Speichert in Supabase
-    3. Findet Beobachtungsfenster
-    4. Optional: Sendet Benachrichtigung
-    
+    Hourly update job
+
+    1. Fetches new meteoblue forecast
+    2. Saves to Supabase
+    3. Finds observation windows
+    4. Optional: Sends notification
+
     Args:
-        config: Konfiguration mit API-Keys etc.
-    
+        config: Configuration with API keys etc.
+
     Returns:
-        Status-Dictionary
+        Status dictionary
     """
     import time
     start_time = time.time()
     
-    # Initialisierung
+    # Initialization
     db = AstroDatabase(
         config["supabase_url"],
         config["supabase_key"]
@@ -415,24 +415,24 @@ def run_hourly_update(config: Dict) -> Dict:
     }
     
     try:
-        # 1. Vorhersage abrufen
+        # 1. Fetch forecast
         conditions = client.fetch_astro_forecast(forecast_days=7)
         status["hours_fetched"] = len(conditions)
         status["credits_used"] = client.get_credits_used()
-        
-        # 2. In DB speichern
+
+        # 2. Save to DB
         saved = db.upsert_hourly_forecast(conditions)
         status["hours_saved"] = saved
-        
-        # 3. Beobachtungsfenster finden
+
+        # 3. Find observation windows
         windows = client.get_best_windows(conditions, min_score=60, min_hours=2)
         status["windows_found"] = len(windows)
-        
-        # 4. Neue Fenster speichern
+
+        # 4. Save new windows
         for w in windows:
             db.save_observation_window(w)
-        
-        # 5. API-Call loggen
+
+        # 5. Log API call
         response_time = int((time.time() - start_time) * 1000)
         db.log_api_call(
             "meteoblue",
@@ -457,7 +457,7 @@ def run_hourly_update(config: Dict) -> Dict:
 # ============================================
 
 if __name__ == "__main__":
-    # Konfiguration aus Umgebungsvariablen oder direkt
+    # Configuration from environment variables or directly
     config = {
         "supabase_url": os.environ.get("SUPABASE_URL", "https://YOUR_PROJECT.supabase.co"),
         "supabase_key": os.environ.get("SUPABASE_KEY", "YOUR_ANON_KEY"),
@@ -471,13 +471,13 @@ if __name__ == "__main__":
     print("=" * 60)
     
     if "YOUR_PROJECT" in config["supabase_url"]:
-        print("\n⚠️  Bitte Supabase-Credentials konfigurieren!")
-        print("   Setze SUPABASE_URL und SUPABASE_KEY als Umgebungsvariablen")
-        print("   oder trage sie direkt in config ein.")
-        print("\n   Beispiel:")
+        print("\nPlease configure Supabase credentials!")
+        print("   Set SUPABASE_URL and SUPABASE_KEY as environment variables")
+        print("   or enter them directly in config.")
+        print("\n   Example:")
         print("   export SUPABASE_URL='https://abc123.supabase.co'")
         print("   export SUPABASE_KEY='eyJ...'")
     else:
-        # Führe Update aus
+        # Run update
         status = run_hourly_update(config)
         print(f"\nStatus: {status}")
