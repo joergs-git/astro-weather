@@ -1,5 +1,5 @@
-# Astrophotographie Vorhersage-System
-# Requirements für Synology NAS
+# Astrophotography Forecasting System
+# Requirements for Synology NAS
 
 # HTTP Client
 requests>=2.28.0
@@ -7,11 +7,11 @@ requests>=2.28.0
 # Supabase Client
 supabase>=2.0.0
 
-# Datenverarbeitung (bereits in Python enthalten, aber explizit)
+# Date processing (included in Python, but explicit)
 python-dateutil>=2.8.0
 
-# Installation auf Synology:
+# Installation on Synology:
 # pip3 install requests supabase
 
-# Optional: Für lokale Tests
+# Optional: For local tests
 # pytest>=7.0.0

@@ -1,114 +1,114 @@
-# 🖥️ Synology NAS - Native Python Setup
+# Synology NAS - Native Python Setup
 
-Komplette Anleitung für das Astro Weather System auf Synology DSM 7.x **ohne Docker**.
-
----
-
-## 📋 Voraussetzungen
-
-- Synology NAS mit **DSM 7.0+**
-- **Admin-Zugang** zur NAS
-- **SSH aktiviert** (Systemsteuerung → Terminal & SNMP → SSH aktivieren)
-- CloudWatcher Solo erreichbar unter `192.168.1.151`
+Complete guide for the Astro Weather System on Synology DSM 7.x **without Docker**.
 
 ---
 
-## 🚀 Schritt-für-Schritt Installation
+## Prerequisites
 
-### 1. Python 3 installieren
+- Synology NAS with **DSM 7.0+**
+- **Admin access** to the NAS
+- **SSH enabled** (Control Panel -> Terminal & SNMP -> Enable SSH)
+- CloudWatcher Solo reachable at `192.168.1.151`
+
+---
+
+## Step-by-Step Installation
+
+### 1. Install Python 3
 
 **Via Package Center (DSM GUI):**
-1. Öffne **Package Center**
-2. Suche nach **"Python 3.11"** (oder neueste verfügbare Version)
-3. Installieren
+1. Open **Package Center**
+2. Search for **"Python 3.11"** (or latest available version)
+3. Install
 
-Falls nicht im Package Center: Python kommt oft mit anderen Paketen wie "Web Station" oder kann über Community-Quellen installiert werden.
+If not in Package Center: Python often comes with other packages like "Web Station" or can be installed via community sources.
 
 ---
 
-### 2. SSH-Verbindung herstellen
+### 2. Establish SSH Connection
 
 ```bash
-# Von deinem PC aus:
-ssh admin@<DEINE-NAS-IP>
+# From your PC:
+ssh admin@<YOUR-NAS-IP>
 
-# Passwort eingeben, dann root werden:
+# Enter password, then become root:
 sudo -i
 ```
 
 ---
 
-### 3. Python & pip prüfen
+### 3. Check Python & pip
 
 ```bash
-# Prüfe Python
+# Check Python
 python3 --version
-# Sollte zeigen: Python 3.9+ oder 3.11+
+# Should show: Python 3.9+ or 3.11+
 
-# Prüfe pip
+# Check pip
 pip3 --version
 
-# Falls pip fehlt:
+# If pip is missing:
 python3 -m ensurepip --upgrade
-# ODER:
+# OR:
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 python3 get-pip.py
 ```
 
 ---
 
-### 4. Projektverzeichnis erstellen
+### 4. Create Project Directory
 
 ```bash
-# Erstelle Verzeichnis (auf Volume 1, anpassen falls anders)
+# Create directory (on Volume 1, adjust if different)
 mkdir -p /volume1/scripts/astro_weather
 cd /volume1/scripts/astro_weather
 ```
 
 ---
 
-### 5. Python-Pakete installieren
+### 5. Install Python Packages
 
 ```bash
-# Installiere benötigte Pakete
+# Install required packages
 pip3 install requests supabase python-dateutil
 
-# Prüfe Installation
-python3 -c "import requests; from supabase import create_client; print('✅ OK')"
+# Verify installation
+python3 -c "import requests; from supabase import create_client; print('OK')"
 ```
 
 ---
 
-### 6. Projektdateien hochladen
+### 6. Upload Project Files
 
 **Option A: Via File Station (GUI)**
-1. Öffne **File Station** in DSM
-2. Navigiere zu `/volume1/scripts/astro_weather`
-3. Lade die `.py` Dateien hoch (Upload-Button)
+1. Open **File Station** in DSM
+2. Navigate to `/volume1/scripts/astro_weather`
+3. Upload the `.py` files (Upload button)
 
 **Option B: Via SCP (Terminal)**
 ```bash
-# Von deinem PC aus (wo die Dateien liegen):
+# From your PC (where the files are):
 scp *.py admin@<NAS-IP>:/volume1/scripts/astro_weather/
 ```
 
-**Option C: Via wget direkt auf NAS**
-Falls du die Dateien irgendwo hostest oder manuell erstellst.
+**Option C: Via wget directly on NAS**
+If you host the files somewhere or create them manually.
 
 ---
 
-### 7. Konfigurationsdatei erstellen
+### 7. Create Configuration File
 
 ```bash
 cd /volume1/scripts/astro_weather
 
-# Erstelle .env Datei
+# Create .env file
 cat > .env << 'EOF'
 # ============================================
-# ASTRO WEATHER KONFIGURATION
+# ASTRO WEATHER CONFIGURATION
 # ============================================
 
-# Standort Wietesch
+# Location Wietesch
 export ASTRO_LAT="52.17"
 export ASTRO_LON="7.25"
 
@@ -118,24 +118,24 @@ export CLOUDWATCHER_HOST="192.168.1.151"
 # meteoblue API
 export METEOBLUE_API_KEY="YOUR_METEOBLUE_API_KEY"
 
-# Supabase (HIER DEINE CREDENTIALS EINTRAGEN!)
-export SUPABASE_URL="https://DEIN-PROJEKT.supabase.co"
+# Supabase (ENTER YOUR CREDENTIALS HERE!)
+export SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
 export SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
-# Optional: Pushover Benachrichtigungen
+# Optional: Pushover notifications
 # export PUSHOVER_USER=""
 # export PUSHOVER_TOKEN=""
 EOF
 
-# Schütze die Datei (nur root lesbar)
+# Protect the file (only root readable)
 chmod 600 .env
 ```
 
-**⚠️ WICHTIG:** Ersetze `SUPABASE_URL` und `SUPABASE_KEY` mit deinen echten Credentials!
+**IMPORTANT:** Replace `SUPABASE_URL` and `SUPABASE_KEY` with your real credentials!
 
 ---
 
-### 8. Verbindung testen
+### 8. Test Connection
 
 ```bash
 cd /volume1/scripts/astro_weather
@@ -149,51 +149,51 @@ python3 cloudwatcher_client.py --test
 echo "=== meteoblue Test ==="
 python3 scheduler.py --test-mb
 
-# Test 3: Gesamtstatus
-echo "=== Gesamtstatus ==="
+# Test 3: Overall status
+echo "=== Overall Status ==="
 python3 scheduler.py --status
 ```
 
-**Erwartete Ausgabe:**
+**Expected output:**
 ```
 === CloudWatcher Test ===
-✅ CloudWatcher is reachable
-✅ 18:45:23 | Sky: ☀️ CLEAR (-8.4°C) | SQM: 18.40 (Bortle ~6) | Temp: 1.3°C | Hum: 72%
+CloudWatcher is reachable
+18:45:23 | Sky: CLEAR (-8.4C) | SQM: 18.40 (Bortle ~6) | Temp: 1.3C | Hum: 72%
 
 === meteoblue Test ===
 Fetched 168 hours
 Next 12 hours:
-🌙 19:00 | Score: 72 ✨ | Seeing: 1.4" | Clouds: 18% | Jet: 22m/s
+19:00 | Score: 72 | Seeing: 1.4" | Clouds: 18% | Jet: 22m/s
 ...
 ```
 
 ---
 
-### 9. Wrapper-Script erstellen
+### 9. Create Wrapper Script
 
-Für den Task Scheduler brauchen wir ein Shell-Script:
+For the Task Scheduler we need a shell script:
 
 ```bash
 cat > /volume1/scripts/astro_weather/run_update.sh << 'EOF'
 #!/bin/bash
-# Astro Weather Update Script für Synology Task Scheduler
+# Astro Weather Update Script for Synology Task Scheduler
 
-# Ins Verzeichnis wechseln
+# Change to directory
 cd /volume1/scripts/astro_weather
 
-# Umgebungsvariablen laden
+# Load environment variables
 source .env
 
-# Python-Pfad (anpassen falls nötig)
+# Python path (adjust if necessary)
 PYTHON="/usr/local/bin/python3"
 
-# Falls Python woanders liegt:
+# If Python is elsewhere:
 # PYTHON="/volume1/@appstore/Python3.11/usr/bin/python3"
 
-# Update ausführen
+# Run update
 $PYTHON scheduler.py --single
 
-# Exit-Code weitergeben
+# Pass through exit code
 exit $?
 EOF
 
@@ -202,38 +202,38 @@ chmod +x /volume1/scripts/astro_weather/run_update.sh
 
 ---
 
-### 10. Task Scheduler einrichten (DSM GUI)
+### 10. Set Up Task Scheduler (DSM GUI)
 
-1. Öffne **Systemsteuerung** → **Aufgabenplaner**
+1. Open **Control Panel** -> **Task Scheduler**
 
-2. Klicke **Erstellen** → **Geplante Aufgabe** → **Benutzerdefiniertes Skript**
+2. Click **Create** -> **Scheduled Task** -> **User-defined script**
 
-3. **Reiter "Allgemein":**
+3. **General tab:**
    - Name: `Astro Weather Update`
-   - Benutzer: `root`
-   - Aktiviert: ✓ (Haken setzen)
+   - User: `root`
+   - Enabled: (check the box)
 
-4. **Reiter "Zeitplan":**
-   - Ausführungstage: Täglich
-   - Erste Ausführungszeit: `00:00`
-   - Häufigkeit: Alle **5 Minuten** wiederholen
-   - Letzte Ausführungszeit: `23:55`
+4. **Schedule tab:**
+   - Run on days: Daily
+   - First run time: `00:00`
+   - Frequency: Repeat every **5 minutes**
+   - Last run time: `23:55`
 
-5. **Reiter "Aufgabeneinstellungen":**
-   - Befehl ausführen:
+5. **Task Settings tab:**
+   - Run command:
    ```
    /volume1/scripts/astro_weather/run_update.sh >> /var/log/astro_weather.log 2>&1
    ```
-   - ✓ Ausführungsdetails per E-Mail senden (optional)
+   - (optional) Send run details by email
 
-6. **OK** klicken
+6. Click **OK**
 
 ---
 
-### 11. Log-Rotation einrichten (optional aber empfohlen)
+### 11. Set Up Log Rotation (optional but recommended)
 
 ```bash
-# Erstelle logrotate Config
+# Create logrotate config
 cat > /etc/logrotate.d/astro_weather << 'EOF'
 /var/log/astro_weather.log {
     daily
@@ -249,42 +249,42 @@ EOF
 
 ---
 
-### 12. Ersten manuellen Test ausführen
+### 12. Run First Manual Test
 
 ```bash
-# Als root
+# As root
 /volume1/scripts/astro_weather/run_update.sh
 
-# Prüfe Log
+# Check log
 tail -20 /var/log/astro_weather.log
 ```
 
 ---
 
-## ✅ Checkliste
+## Checklist
 
-- [ ] Python 3 installiert und funktioniert
-- [ ] pip3 installiert
-- [ ] `requests` und `supabase` Pakete installiert
-- [ ] Projektdateien in `/volume1/scripts/astro_weather/`
-- [ ] `.env` Datei mit korrekten Credentials
-- [ ] CloudWatcher Test erfolgreich (`--test`)
-- [ ] meteoblue Test erfolgreich (`--test-mb`)
-- [ ] `run_update.sh` erstellt und ausführbar
-- [ ] Task Scheduler Aufgabe erstellt
-- [ ] Erster manueller Durchlauf erfolgreich
+- [ ] Python 3 installed and working
+- [ ] pip3 installed
+- [ ] `requests` and `supabase` packages installed
+- [ ] Project files in `/volume1/scripts/astro_weather/`
+- [ ] `.env` file with correct credentials
+- [ ] CloudWatcher test successful (`--test`)
+- [ ] meteoblue test successful (`--test-mb`)
+- [ ] `run_update.sh` created and executable
+- [ ] Task Scheduler task created
+- [ ] First manual run successful
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### "Python not found"
 
 ```bash
-# Finde Python
+# Find Python
 find / -name "python3" 2>/dev/null
 
-# Typische Pfade auf Synology:
+# Typical paths on Synology:
 # /usr/local/bin/python3
 # /usr/bin/python3
 # /volume1/@appstore/Python3.11/usr/bin/python3
@@ -293,68 +293,68 @@ find / -name "python3" 2>/dev/null
 ### "Module not found: requests"
 
 ```bash
-# Prüfe welches pip zu welchem Python gehört
+# Check which pip belongs to which Python
 which pip3
 which python3
 
-# Installiere für das richtige Python
+# Install for the correct Python
 /usr/local/bin/python3 -m pip install requests supabase
 ```
 
-### "Connection refused" bei CloudWatcher
+### "Connection refused" for CloudWatcher
 
 ```bash
-# Ping testen
+# Test ping
 ping 192.168.1.151
 
-# HTTP direkt testen
+# Test HTTP directly
 curl -v http://192.168.1.151/cgi-bin/lastData.pl
 
-# Falls Firewall-Problem: Prüfe NAS Firewall-Regeln
+# If firewall issue: Check NAS firewall rules
 ```
 
 ### "Supabase connection error"
 
 ```bash
-# Teste Credentials
+# Test credentials
 python3 << 'EOF'
 import os
 os.environ['SUPABASE_URL'] = 'https://xxx.supabase.co'
 os.environ['SUPABASE_KEY'] = 'eyJ...'
 from supabase import create_client
 client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_KEY'])
-print("✅ Supabase connected!")
+print("Supabase connected!")
 EOF
 ```
 
-### Task läuft nicht
+### Task not running
 
 ```bash
-# Prüfe Task Scheduler Logs
+# Check Task Scheduler logs
 cat /var/log/synolog/synoscheduler.log | grep -i astro
 
-# Manuell testen
+# Test manually
 /volume1/scripts/astro_weather/run_update.sh
 echo "Exit code: $?"
 ```
 
 ---
 
-## 📊 Monitoring
+## Monitoring
 
-### Live-Log beobachten
+### Watch Live Log
 
 ```bash
 tail -f /var/log/astro_weather.log
 ```
 
-### Letzte Einträge prüfen
+### Check Recent Entries
 
 ```bash
 tail -50 /var/log/astro_weather.log
 ```
 
-### Status abfragen
+### Query Status
 
 ```bash
 cd /volume1/scripts/astro_weather && source .env && python3 scheduler.py --status
@@ -362,20 +362,20 @@ cd /volume1/scripts/astro_weather && source .env && python3 scheduler.py --statu
 
 ---
 
-## 📈 Was passiert nach dem Setup?
+## What Happens After Setup?
 
-**Alle 5 Minuten:**
-- CloudWatcher wird gepollt
-- Daten werden in Supabase gespeichert
+**Every 5 minutes:**
+- CloudWatcher is polled
+- Data is saved to Supabase
 
-**Jede volle Stunde (Minute 0-4):**
-- meteoblue 7-Tage Forecast wird abgerufen
-- Daten werden in Supabase gespeichert
-- Beobachtungsfenster werden erkannt
+**Every full hour (minute 0-4):**
+- meteoblue 7-day forecast is fetched
+- Data is saved to Supabase
+- Observation windows are detected
 
-**In Supabase sammelst du:**
-- `cloudwatcher_readings` - Ground Truth alle 5 min
-- `meteoblue_hourly` - Forecast-Daten stündlich
-- `observation_windows` - Erkannte gute Nächte
+**In Supabase you collect:**
+- `cloudwatcher_readings` - Ground truth every 5 min
+- `meteoblue_hourly` - Forecast data hourly
+- `observation_windows` - Detected good nights
 
-Nach 2-4 Wochen hast du genug Daten fürs ML-Training! 🎯
+After 2-4 weeks you have enough data for ML training!

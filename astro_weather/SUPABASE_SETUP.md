@@ -1,40 +1,40 @@
-# 🗄️ Supabase Setup Anleitung
+# Supabase Setup Guide
 
-Supabase ist eine kostenlose PostgreSQL-Datenbank in der Cloud. Perfekt für unser Projekt.
-
----
-
-## 1. Account erstellen
-
-1. Gehe zu **https://supabase.com**
-2. Klicke **"Start your project"**
-3. Login mit **GitHub** (empfohlen) oder Email
+Supabase is a free PostgreSQL database in the cloud. Perfect for this project.
 
 ---
 
-## 2. Neues Projekt erstellen
+## 1. Create Account
 
-1. Klicke **"New Project"**
-2. Fülle aus:
-   - **Name:** `astro-weather` (oder wie du willst)
-   - **Database Password:** Sicheres Passwort generieren & SPEICHERN!
-   - **Region:** Frankfurt (eu-central-1) ← Nächste zu dir
-3. Klicke **"Create new project"**
-4. Warte 1-2 Minuten bis Projekt bereit ist
+1. Go to **https://supabase.com**
+2. Click **"Start your project"**
+3. Login with **GitHub** (recommended) or Email
 
 ---
 
-## 3. Datenbank-Schema erstellen
+## 2. Create New Project
 
-1. Im Supabase Dashboard, klicke links auf **"SQL Editor"**
-2. Klicke **"New query"**
-3. Kopiere den **gesamten Inhalt** von `supabase_schema.sql` hinein
-4. Klicke **"Run"** (oder Ctrl+Enter)
-5. Du solltest sehen: "Success. No rows returned"
+1. Click **"New Project"**
+2. Fill in:
+   - **Name:** `astro-weather` (or whatever you prefer)
+   - **Database Password:** Generate a secure password & SAVE IT!
+   - **Region:** Frankfurt (eu-central-1) - closest to your location
+3. Click **"Create new project"**
+4. Wait 1-2 minutes until project is ready
 
-**Prüfen ob Tabellen erstellt wurden:**
-- Klicke links auf **"Table Editor"**
-- Du solltest sehen:
+---
+
+## 3. Create Database Schema
+
+1. In the Supabase Dashboard, click **"SQL Editor"** on the left
+2. Click **"New query"**
+3. Copy the **entire contents** of `supabase_schema.sql` into it
+4. Click **"Run"** (or Ctrl+Enter)
+5. You should see: "Success. No rows returned"
+
+**Verify tables were created:**
+- Click **"Table Editor"** on the left
+- You should see:
   - `cloudwatcher_readings`
   - `meteoblue_hourly`
   - `observation_windows`
@@ -44,29 +44,29 @@ Supabase ist eine kostenlose PostgreSQL-Datenbank in der Cloud. Perfekt für uns
 
 ---
 
-## 4. API-Credentials holen
+## 4. Get API Credentials
 
-1. Klicke links auf **"Project Settings"** (Zahnrad-Icon)
-2. Klicke auf **"API"** im Untermenü
-3. Notiere dir:
+1. Click **"Project Settings"** on the left (gear icon)
+2. Click **"API"** in the submenu
+3. Note down:
 
 **Project URL:**
 ```
 https://xxxxxxxxxxxx.supabase.co
 ```
 
-**anon public Key** (der lange mit eyJ...):
+**anon public Key** (the long one starting with eyJ...):
 ```
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx...
 ```
 
-⚠️ Das ist der **anon key** - sicher für Client-Anwendungen.
+Note: This is the **anon key** - safe for client applications.
 
 ---
 
-## 5. In .env eintragen
+## 5. Add to .env
 
-Auf deiner Synology, editiere `/volume1/scripts/astro_weather/.env`:
+On your Synology, edit `/volume1/scripts/astro_weather/.env`:
 
 ```bash
 export SUPABASE_URL="https://xxxxxxxxxxxx.supabase.co"
@@ -75,7 +75,7 @@ export SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx..."
 
 ---
 
-## 6. Verbindung testen
+## 6. Test Connection
 
 ```bash
 cd /volume1/scripts/astro_weather
@@ -93,81 +93,81 @@ print(f"Key: {key[:20]}...")
 
 client = create_client(url, key)
 
-# Test: Leere Abfrage
+# Test: Empty query
 result = client.table("cloudwatcher_readings").select("*").limit(1).execute()
-print(f"✅ Verbindung OK! Rows: {len(result.data)}")
+print(f"Connection OK! Rows: {len(result.data)}")
 EOF
 ```
 
 ---
 
-## 📊 Supabase Dashboard nutzen
+## Using the Supabase Dashboard
 
-### Daten ansehen
+### View Data
 
-1. **Table Editor** → Wähle Tabelle → Siehst alle Zeilen
-2. Klicke auf eine Zeile zum Editieren
-3. Filter und Sortierung möglich
+1. **Table Editor** -> Select table -> See all rows
+2. Click on a row to edit
+3. Filter and sorting available
 
-### SQL Abfragen
+### SQL Queries
 
-Im **SQL Editor** kannst du direkt abfragen:
+In the **SQL Editor** you can query directly:
 
 ```sql
--- Letzte 10 CloudWatcher Messungen
+-- Last 10 CloudWatcher readings
 SELECT timestamp, sky_quality, sky_minus_ambient, sky_brightness_mpsas
 FROM cloudwatcher_readings
 ORDER BY timestamp DESC
 LIMIT 10;
 
--- Beste Stunden der nächsten 3 Tage
+-- Best hours in the next 3 days
 SELECT timestamp, astro_score, seeing_arcsec, totalcloud
 FROM meteoblue_hourly
 WHERE timestamp > NOW()
-  AND zenith_angle > 108  -- Astronomische Nacht
+  AND zenith_angle > 108  -- Astronomical night
 ORDER BY astro_score DESC
 LIMIT 20;
 
--- Wie oft lag meteoblue richtig?
-SELECT 
+-- How often was meteoblue correct?
+SELECT
   COUNT(*) as total,
   SUM(CASE WHEN cloud_classification_match THEN 1 ELSE 0 END) as correct,
   ROUND(100.0 * SUM(CASE WHEN cloud_classification_match THEN 1 ELSE 0 END) / COUNT(*), 1) as accuracy_pct
 FROM training_pairs;
 ```
 
-### Charts (mit Supabase)
+### Charts (with Supabase)
 
-Supabase hat kein eingebautes Charting, aber du kannst:
-- Daten exportieren (CSV)
-- Mit externen Tools verbinden (Grafana, Metabase)
-- Oder später ein einfaches Dashboard bauen
-
----
-
-## 💰 Kosten
-
-**Free Tier (reicht für uns!):**
-- 500 MB Datenbank
-- 2 GB Bandwidth
-- 50.000 monatliche Requests
-
-Bei 5-Minuten-Polling:
-- ~8.640 CloudWatcher-Inserts/Monat
-- ~720 meteoblue-Inserts/Monat
-- **Weit unter dem Limit!**
+Supabase has no built-in charting, but you can:
+- Export data (CSV)
+- Connect with external tools (Grafana, Metabase)
+- Or build a simple dashboard later
 
 ---
 
-## 🔒 Sicherheit
+## Costs
 
-Der `anon` Key ist sicher für Client-Anwendungen weil:
-- Row Level Security (RLS) kann Zugriff einschränken
-- Für unser privates Projekt ist RLS optional
+**Free Tier (sufficient for us!):**
+- 500 MB database
+- 2 GB bandwidth
+- 50,000 monthly requests
 
-Falls du RLS aktivieren willst (optional):
+With 5-minute polling:
+- ~8,640 CloudWatcher inserts/month
+- ~720 meteoblue inserts/month
+- **Well under the limit!**
+
+---
+
+## Security
+
+The `anon` key is safe for client applications because:
+- Row Level Security (RLS) can restrict access
+- For our private project, RLS is optional
+
+If you want to enable RLS (optional):
 ```sql
--- Beispiel: Nur Lesen erlauben
+-- Example: Allow read only
 ALTER TABLE cloudwatcher_readings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow read" ON cloudwatcher_readings FOR SELECT USING (true);
 CREATE POLICY "Allow insert" ON cloudwatcher_readings FOR INSERT WITH CHECK (true);
@@ -175,13 +175,13 @@ CREATE POLICY "Allow insert" ON cloudwatcher_readings FOR INSERT WITH CHECK (tru
 
 ---
 
-## ✅ Checkliste
+## Checklist
 
-- [ ] Supabase Account erstellt
-- [ ] Projekt erstellt (Region: Frankfurt)
-- [ ] Schema ausgeführt (SQL Editor)
-- [ ] Tabellen sichtbar im Table Editor
-- [ ] API URL notiert
-- [ ] API Key (anon) notiert
-- [ ] In `.env` auf Synology eingetragen
-- [ ] Verbindungstest erfolgreich
+- [ ] Supabase account created
+- [ ] Project created (Region: Frankfurt)
+- [ ] Schema executed (SQL Editor)
+- [ ] Tables visible in Table Editor
+- [ ] API URL noted
+- [ ] API Key (anon) noted
+- [ ] Added to `.env` on Synology
+- [ ] Connection test successful

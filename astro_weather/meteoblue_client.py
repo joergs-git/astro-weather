@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-meteoblue API Client für Astrophotographie
+meteoblue API Client for Astrophotography
 ==========================================
 
-Ruft alle relevanten Wetterdaten für Astrophotographie ab:
+Fetches all relevant weather data for astrophotography:
 - Seeing (Arcseconds, Index 1 & 2)
 - Jet Stream & Bad Layers
-- Wolkenschichten (Low/Mid/High)
+- Cloud layers (Low/Mid/High)
 - Nightsky Brightness
-- Mond-Daten
+- Moon data
 
-Autor: Claude für Joerg @ Wietesch
+Location: Wietesch/Rheine
 """
 
 import os
@@ -27,41 +27,41 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AstroConditions:
-    """Astronomische Bedingungen für einen Zeitpunkt"""
+    """Astronomical conditions for a given time"""
     timestamp: datetime
     
     # Seeing
-    seeing_arcsec: float          # Bogensekunden (kleiner = besser)
+    seeing_arcsec: float          # Arcseconds (smaller = better)
     seeing_index1: int            # 1-5 (1 = best)
     seeing_index2: int            # 1-5 (1 = best)
     jetstream_speed: float        # m/s (ideal: 10-25)
     
     # Bad Layers
-    badlayer_bottom: Optional[int] = None   # Höhe in m
-    badlayer_top: Optional[int] = None      # Höhe in m
+    badlayer_bottom: Optional[int] = None   # Height in m
+    badlayer_top: Optional[int] = None      # Height in m
     badlayer_gradient: Optional[float] = None  # K/100m
     
-    # Wolken
+    # Clouds
     totalcloud: int = 0           # % (0-100)
     lowclouds: int = 0            # %
     midclouds: int = 0            # %
     highclouds: int = 0           # %
     visibility: int = 0           # m
     fog_probability: int = 0      # %
-    
-    # Himmelshelligkeit
+
+    # Sky brightness
     nightsky_brightness_actual: float = 0.0    # Lux
-    nightsky_brightness_clearsky: float = 0.0  # Lux (zum Vergleich)
+    nightsky_brightness_clearsky: float = 0.0  # Lux (for comparison)
     moonlight_actual: float = 0.0              # % of full moon
-    zenith_angle: float = 0.0                  # Grad (Sonne)
-    
-    # Basis-Wetter
+    zenith_angle: float = 0.0                  # Degrees (Sun)
+
+    # Basic weather
     temperature: float = 0.0      # °C
     humidity: int = 0             # %
     precipitation_prob: int = 0   # %
     wind_speed: float = 0.0       # km/h
-    
-    # Berechnete Scores
+
+    # Calculated scores
     astro_score: int = field(init=False)
     quality_class: str = field(init=False)
     
@@ -71,17 +71,17 @@ class AstroConditions:
     
     def _calculate_astro_score(self) -> int:
         """
-        Berechnet Gesamt-Score (0-100) für Astrophotographie
-        
-        Gewichtung:
-        - Wolken: max -50 Punkte
-        - Seeing: max -30 Punkte  
-        - Jet Stream: max -10 Punkte
-        - Mondlicht/Helligkeit: max -10 Punkte
+        Calculates total score (0-100) for astrophotography
+
+        Weighting:
+        - Clouds: max -50 points
+        - Seeing: max -30 points
+        - Jet Stream: max -10 points
+        - Moonlight/brightness: max -10 points
         """
         score = 100
         
-        # Wolken (max -50)
+        # Clouds (max -50)
         cloud_penalty = self.totalcloud * 0.5
         score -= cloud_penalty
         
@@ -97,11 +97,11 @@ class AstroConditions:
             jet_penalty = min(10, (self.jetstream_speed - 35) * 0.5)
             score -= jet_penalty
         elif self.jetstream_speed < 5:
-            # Zu wenig Jet Stream kann auch problematisch sein (stehende Luft)
+            # Too little jet stream can also be problematic (stagnant air)
             score -= 3
         
-        # Mondlicht (max -10) - nur relevant bei Nacht
-        if self.zenith_angle > 90:  # Sonne unter Horizont
+        # Moonlight (max -10) - only relevant at night
+        if self.zenith_angle > 90:  # Sun below horizon
             if self.moonlight_actual > 30:
                 moon_penalty = min(10, self.moonlight_actual * 0.15)
                 score -= moon_penalty
@@ -113,7 +113,7 @@ class AstroConditions:
         return max(0, min(100, int(score)))
     
     def _classify_quality(self) -> str:
-        """Klassifiziert die Nacht-Qualität"""
+        """Classifies the night quality"""
         if self.astro_score >= 85:
             return "EXCELLENT"
         elif self.astro_score >= 70:
@@ -126,7 +126,7 @@ class AstroConditions:
             return "BAD"
     
     def get_seeing_quality(self) -> str:
-        """Klassifiziert nur das Seeing"""
+        """Classifies seeing only"""
         if self.seeing_arcsec < 0.8:
             return "Excellent (<0.8\")"
         elif self.seeing_arcsec < 1.2:
@@ -143,15 +143,15 @@ class AstroConditions:
             return "Bad (>3.0\")"
     
     def is_night(self) -> bool:
-        """Prüft ob es Nacht ist (Sonne unter Horizont)"""
+        """Checks if it's night (sun below horizon)"""
         return self.zenith_angle > 90
     
     def is_astronomical_night(self) -> bool:
-        """Prüft ob astronomische Nacht (Sonne >18° unter Horizont)"""
+        """Checks if it's astronomical night (sun >18° below horizon)"""
         return self.zenith_angle > 108
     
     def to_dict(self) -> Dict[str, Any]:
-        """Konvertiert zu Dictionary für DB-Speicherung"""
+        """Converts to dictionary for DB storage"""
         return {
             "timestamp": self.timestamp.isoformat(),
             "seeing_arcsec": self.seeing_arcsec,
@@ -180,7 +180,7 @@ class AstroConditions:
         }
     
     def summary(self) -> str:
-        """Kurze Zusammenfassung für Anzeige"""
+        """Short summary for display"""
         night_status = "🌙" if self.is_astronomical_night() else "🌅" if self.is_night() else "☀️"
         
         quality_emoji = {
@@ -207,7 +207,7 @@ class MeteoblueAstroClient:
     
     BASE_URL = "https://my.meteoblue.com/packages"
     
-    # Optimales kombiniertes Paket für Astrophotographie
+    # Optimal combined package for astrophotography
     ASTRO_PACKAGE = "seeing-1h_clouds-1h_moonlight-1h_air-1h_basic-1h"
     
     def __init__(self, api_key: str, lat: float, lon: float, timezone: str = "Europe/Berlin"):
@@ -220,13 +220,13 @@ class MeteoblueAstroClient:
     
     def fetch_astro_forecast(self, forecast_days: int = 7) -> List[AstroConditions]:
         """
-        Holt die komplette Astro-Vorhersage
-        
+        Fetches the complete astro forecast
+
         Args:
-            forecast_days: Anzahl Tage (1-7)
-        
+            forecast_days: Number of days (1-7)
+
         Returns:
-            Liste von AstroConditions für jede Stunde
+            List of AstroConditions for each hour
         """
         url = f"{self.BASE_URL}/{self.ASTRO_PACKAGE}"
         params = {
@@ -256,15 +256,15 @@ class MeteoblueAstroClient:
             raise
     
     def _parse_response(self, data: Dict[str, Any]) -> List[AstroConditions]:
-        """Parst die API-Antwort zu AstroConditions-Objekten"""
+        """Parses the API response to AstroConditions objects"""
         conditions = []
         
         data_1h = data.get("data_1h", {})
         
-        # Zeitstempel
+        # Timestamps
         times = data_1h.get("time", [])
         
-        # Extrahiere alle Arrays
+        # Extract all arrays
         seeing_arcsec = data_1h.get("seeing_arcsec", [])
         seeing1 = data_1h.get("seeing1", [])
         seeing2 = data_1h.get("seeing2", [])
@@ -293,23 +293,23 @@ class MeteoblueAstroClient:
         
         for i, time_str in enumerate(times):
             try:
-                # Parse timestamp - meteoblue liefert lokale Zeit (Europe/Berlin) ohne Timezone
+                # Parse timestamp - meteoblue delivers local time (Europe/Berlin) without timezone
                 # Format: "2026-01-23 00:00"
                 naive_ts = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
                 
-                # Konvertiere lokale Zeit zu UTC
-                # Europe/Berlin: UTC+1 (Winter/CET) oder UTC+2 (Sommer/CEST)
-                # Sommerzeit: letzter Sonntag März bis letzter Sonntag Oktober
+                # Convert local time to UTC
+                # Europe/Berlin: UTC+1 (Winter/CET) or UTC+2 (Summer/CEST)
+                # Daylight saving: last Sunday of March to last Sunday of October
                 from datetime import timezone as dt_tz, timedelta
                 
-                # Einfache Sommerzeitberechnung
+                # Simple daylight saving time calculation
                 month = naive_ts.month
                 if 4 <= month <= 10:
-                    # April bis Oktober: wahrscheinlich Sommerzeit (UTC+2)
-                    # (vereinfacht - exakte Berechnung wäre komplexer)
+                    # April to October: probably summer time (UTC+2)
+                    # (simplified - exact calculation would be more complex)
                     offset_hours = 2
                 else:
-                    # November bis März: Winterzeit (UTC+1)
+                    # November to March: winter time (UTC+1)
                     offset_hours = 1
                 
                 local_tz = dt_tz(timedelta(hours=offset_hours))
@@ -350,35 +350,35 @@ class MeteoblueAstroClient:
     
     @staticmethod
     def _safe_get(arr: list, idx: int, default):
-        """Sicherer Array-Zugriff mit Default-Wert"""
+        """Safe array access with default value"""
         try:
             val = arr[idx] if idx < len(arr) else default
             return val if val is not None else default
         except (IndexError, TypeError):
             return default
     
-    def get_best_windows(self, 
+    def get_best_windows(self,
                          conditions: List[AstroConditions],
                          min_score: int = 60,
                          min_hours: int = 2,
                          only_night: bool = True) -> List[Dict]:
         """
-        Findet die besten Beobachtungsfenster
-        
+        Finds the best observation windows
+
         Args:
-            conditions: Liste von AstroConditions
-            min_score: Minimaler Astro-Score (0-100)
-            min_hours: Minimale Fensterlänge in Stunden
-            only_night: Nur astronomische Nacht berücksichtigen
-        
+            conditions: List of AstroConditions
+            min_score: Minimum astro score (0-100)
+            min_hours: Minimum window length in hours
+            only_night: Only consider astronomical night
+
         Returns:
-            Liste von Fenstern mit Start, Ende, Durchschnitts-Score
+            List of windows with start, end, average score
         """
         windows = []
         current_window = None
         
         for cond in conditions:
-            # Filter: Nur Nacht und min. Score
+            # Filter: Only night and min. score
             is_valid = cond.astro_score >= min_score
             if only_night:
                 is_valid = is_valid and cond.is_astronomical_night()
@@ -396,7 +396,7 @@ class MeteoblueAstroClient:
                     current_window["conditions"].append(cond)
                     current_window["scores"].append(cond.astro_score)
             else:
-                # Fenster beenden
+                # End window
                 if current_window is not None:
                     hours = len(current_window["conditions"])
                     if hours >= min_hours:
@@ -408,7 +408,7 @@ class MeteoblueAstroClient:
                         windows.append(current_window)
                     current_window = None
         
-        # Letztes Fenster nicht vergessen
+        # Don't forget last window
         if current_window is not None:
             hours = len(current_window["conditions"])
             if hours >= min_hours:
@@ -419,17 +419,17 @@ class MeteoblueAstroClient:
                 current_window["avg_clouds"] = sum(c.totalcloud for c in current_window["conditions"]) / hours
                 windows.append(current_window)
         
-        # Nach Durchschnitts-Score sortieren
+        # Sort by average score
         windows.sort(key=lambda w: w["avg_score"], reverse=True)
         
         return windows
     
     def get_credits_used(self) -> int:
-        """Gibt die beim letzten Call verbrauchten Credits zurück"""
+        """Returns credits used in last call"""
         return self._credits_used
     
     def get_raw_response(self) -> Optional[Dict]:
-        """Gibt die letzte Roh-Antwort zurück"""
+        """Returns last raw response"""
         return self._last_response
 
 
@@ -438,9 +438,9 @@ class MeteoblueAstroClient:
 # ============================================
 
 if __name__ == "__main__":
-    # Konfiguration
+    # Configuration
     API_KEY = os.environ.get("METEOBLUE_API_KEY", "")
-    LAT = 52.17  # Wietesch (korrigiert)
+    LAT = 52.17  # Wietesch
     LON = 7.25
     
     print("=" * 70)
@@ -449,36 +449,36 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
     
-    # Client erstellen
+    # Create client
     client = MeteoblueAstroClient(API_KEY, LAT, LON)
-    
-    # Vorhersage abrufen
-    print("Lade 7-Tage Astro-Vorhersage...")
+
+    # Fetch forecast
+    print("Loading 7-day astro forecast...")
     conditions = client.fetch_astro_forecast(forecast_days=7)
-    print(f"✓ {len(conditions)} Stunden geladen")
+    print(f"Loaded {len(conditions)} hours")
     print()
     
-    # Zeige die nächsten 24 Stunden
-    print("NÄCHSTE 24 STUNDEN:")
+    # Show next 24 hours
+    print("NEXT 24 HOURS:")
     print("-" * 70)
     for cond in conditions[:24]:
         print(cond.summary())
     print()
-    
-    # Beste Fenster finden
-    print("BESTE BEOBACHTUNGSFENSTER (Score >= 60, mind. 2h):")
+
+    # Find best windows
+    print("BEST OBSERVATION WINDOWS (Score >= 60, min. 2h):")
     print("-" * 70)
     windows = client.get_best_windows(conditions, min_score=60, min_hours=2)
-    
+
     if windows:
         for i, w in enumerate(windows[:5], 1):
             print(f"\n{i}. {w['start'].strftime('%a %d.%m. %H:%M')} - {w['end'].strftime('%H:%M')}")
-            print(f"   Dauer: {w['hours']}h | Ø Score: {w['avg_score']:.0f} | Min: {w['min_score']}")
-            print(f"   Ø Seeing: {w['avg_seeing']:.1f}\" | Ø Wolken: {w['avg_clouds']:.0f}%")
+            print(f"   Duration: {w['hours']}h | Avg Score: {w['avg_score']:.0f} | Min: {w['min_score']}")
+            print(f"   Avg Seeing: {w['avg_seeing']:.1f}\" | Avg Clouds: {w['avg_clouds']:.0f}%")
     else:
-        print("⚠️  Keine guten Fenster in den nächsten 7 Tagen gefunden")
+        print("No good windows found in the next 7 days")
     
     print()
     print("=" * 70)
-    print(f"Credits verwendet: {client.get_credits_used()}")
+    print(f"Credits used: {client.get_credits_used()}")
     print("=" * 70)
